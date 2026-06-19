@@ -54,8 +54,9 @@ const emptyCost: CostBreakdown = { examFee: 0, medicineFee: 0, treatmentFee: 0, 
 
 export default function Visits() {
   const {
-    visits, pets, doctors, owners, prescriptions, attachments,
-    createVisit, addPrescription, generateReminders, createFollowup, addAttachment
+    visits, pets, doctors, owners, prescriptions, attachments, appointments,
+    createVisit, addPrescription, generateReminders, createFollowup, addAttachment,
+    completeAppointment,
   } = useAppStore();
 
   const [viewMode, setViewMode] = useState<ViewMode>('list');
@@ -68,6 +69,7 @@ export default function Visits() {
 
   const [formPetId, setFormPetId] = useState('');
   const [formDoctorId, setFormDoctorId] = useState('');
+  const [formAppointmentId, setFormAppointmentId] = useState('');
   const [formVisitDate, setFormVisitDate] = useState(formatISO(new Date(), { representation: 'date' }));
   const [formSymptoms, setFormSymptoms] = useState('');
   const [formExamination, setFormExamination] = useState('');
@@ -137,6 +139,7 @@ export default function Visits() {
   const resetForm = () => {
     setFormPetId('');
     setFormDoctorId('');
+    setFormAppointmentId('');
     setFormVisitDate(formatISO(new Date(), { representation: 'date' }));
     setFormSymptoms('');
     setFormExamination('');
@@ -147,6 +150,19 @@ export default function Visits() {
     setFormAttachments([]);
     setFormCost({ ...emptyCost });
     setFormPaymentStatus('pending');
+  };
+
+  const handleSelectAppointment = (appointmentId: string) => {
+    setFormAppointmentId(appointmentId);
+    const apt = appointments.find((a) => a.id === appointmentId);
+    if (apt) {
+      setFormPetId(apt.petId);
+      setFormDoctorId(apt.doctorId);
+      setFormVisitDate(apt.startTime.slice(0, 10));
+      if (apt.notes && !formSymptoms) {
+        setFormSymptoms(apt.notes);
+      }
+    }
   };
 
   const openNewForm = () => {
@@ -164,6 +180,7 @@ export default function Visits() {
     const presc = getVisitPrescriptions(visit.id);
     setFormPetId(visit.petId);
     setFormDoctorId(visit.doctorId);
+    setFormAppointmentId(visit.appointmentId || '');
     setFormVisitDate(visit.visitDate);
     setFormSymptoms(visit.symptoms);
     setFormExamination(visit.examination);
@@ -231,6 +248,7 @@ export default function Visits() {
     const newVisit = createVisit({
       petId: formPetId,
       doctorId: formDoctorId,
+      appointmentId: formAppointmentId || undefined,
       visitDate: formVisitDate,
       symptoms: formSymptoms,
       examination: formExamination + (formAuxiliaryExam ? `\n【辅助检查】${formAuxiliaryExam}` : ''),
@@ -282,6 +300,10 @@ export default function Visits() {
         status: 'pending',
         notes: `${formDiagnosis} 治疗后复诊`,
       });
+    }
+
+    if (!asDraft && formAppointmentId) {
+      completeAppointment(formAppointmentId);
     }
 
     showToast('success', asDraft ? '草稿已保存' : '开单成功！已生成用药提醒和回访计划');
@@ -503,6 +525,29 @@ export default function Visits() {
                 >
                   <X className="w-5 h-5" />
                 </button>
+              </div>
+              <div className="mb-4">
+                <label className="label">关联预约（可选，快速带入信息）</label>
+                <select
+                  value={formAppointmentId}
+                  onChange={(e) => handleSelectAppointment(e.target.value)}
+                  className="input"
+                >
+                  <option value="">不关联预约</option>
+                  {appointments
+                    .filter((a) => a.status === 'scheduled' || a.status === 'confirmed')
+                    .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
+                    .map((apt) => {
+                      const pet = getPet(apt.petId);
+                      const doctor = getDoctor(apt.doctorId);
+                      const timeStr = formatDate(apt.startTime) + ' ' + apt.startTime.slice(11, 16);
+                      return (
+                        <option key={apt.id} value={apt.id}>
+                          {timeStr} · {pet?.name || '-'} · {doctor?.name || '-'} · {apt.serviceType}
+                        </option>
+                      );
+                    })}
+                </select>
               </div>
               <div className="grid grid-cols-3 gap-4">
                 <div>
@@ -965,6 +1010,15 @@ export default function Visits() {
                             <div className="text-sm text-gray-600 flex items-center gap-1.5">
                               <Calendar className="w-3.5 h-3.5 text-gray-400" />
                               {formatDate(selectedVisit.visitDate)}
+                              {selectedVisit.appointmentId && (() => {
+                                const apt = appointments.find((a) => a.id === selectedVisit.appointmentId);
+                                if (!apt) return null;
+                                return (
+                                  <span className="ml-2 chip bg-info-100 text-info-700 text-xs">
+                                    关联预约 · {apt.serviceType}
+                                  </span>
+                                );
+                              })()}
                             </div>
                           </div>
                         </div>

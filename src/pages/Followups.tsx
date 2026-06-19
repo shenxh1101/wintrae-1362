@@ -611,6 +611,20 @@ export default function Followups() {
                             </div>
                           )}
 
+                          {f.visitId && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                window.location.hash = '#/visits';
+                              }}
+                              className="mb-3 w-full text-left text-xs text-brand-600 hover:text-brand-700 flex items-center gap-1.5 bg-brand-50 hover:bg-brand-100 rounded-lg p-2 transition-colors"
+                            >
+                              <Stethoscope className="w-3.5 h-3.5" />
+                              <span>查看原接诊记录</span>
+                              <ChevronRight className="w-3.5 h-3.5 ml-auto" />
+                            </button>
+                          )}
+
                           <div className="flex items-center justify-between pt-3 border-t border-gray-50">
                             <div className="flex items-center gap-1 text-xs text-gray-400">
                               <Calendar className="w-3.5 h-3.5" />
@@ -740,9 +754,20 @@ export default function Followups() {
 
                     {visit && (
                       <div className="p-4 bg-brand-50 rounded-xl border border-brand-100">
-                        <div className="flex items-center gap-2 mb-3">
-                          <Stethoscope className="w-4 h-4 text-brand-600" />
-                          <span className="text-sm font-semibold text-brand-700">关联就诊摘要</span>
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <Stethoscope className="w-4 h-4 text-brand-600" />
+                            <span className="text-sm font-semibold text-brand-700">关联就诊摘要</span>
+                          </div>
+                          <button
+                            onClick={() => {
+                              window.location.hash = '#/visits';
+                            }}
+                            className="text-xs font-medium text-brand-600 hover:text-brand-700 flex items-center gap-1"
+                          >
+                            查看详情
+                            <ChevronRight className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                         <div className="space-y-2 text-xs">
                           <div className="flex gap-2">

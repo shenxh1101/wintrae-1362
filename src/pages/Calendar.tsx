@@ -11,6 +11,9 @@ import {
   Clock,
   User,
   MapPin,
+  Stethoscope,
+  DollarSign,
+  FileText,
 } from 'lucide-react';
 import {
   startOfWeek,
@@ -29,7 +32,7 @@ import {
 } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { useAppStore } from '@/store/useAppStore';
-import { cn, formatDate, formatTime, statusText, statusColor } from '@/utils/format';
+import { cn, formatDate, formatTime, formatCurrency, statusText, statusColor } from '@/utils/format';
 import { serviceTypeColors, timeSlots, weekDayNames } from '@/data/mockData';
 import type { Appointment, ServiceType, AppointmentStatus } from '@/types';
 
@@ -48,6 +51,7 @@ export default function CalendarPage() {
     pets,
     doctors,
     rooms,
+    visits,
     selectedDoctorId,
     selectedDate,
     filterType,
@@ -356,7 +360,9 @@ export default function CalendarPage() {
                             }}
                             className={cn(
                               'mb-1 p-2 rounded-lg border text-xs cursor-pointer transition-all hover:shadow-md hover:scale-[1.02]',
-                              serviceTypeColors[apt.serviceType] || 'bg-gray-100 text-gray-700 border-gray-200'
+                              apt.status === 'completed'
+                                ? 'bg-green-50 text-green-700 border-green-300'
+                                : serviceTypeColors[apt.serviceType] || 'bg-gray-100 text-gray-700 border-gray-200'
                             )}
                           >
                             <div className="flex items-start justify-between gap-1">
@@ -602,6 +608,7 @@ export default function CalendarPage() {
               const owner = selectedAppointment.petId
                 ? useAppStore.getState().owners.find((o) => o.id === pet?.ownerId)
                 : null;
+              const relatedVisit = visits.find((v) => v.appointmentId === selectedAppointment.id);
               return (
                 <>
                   <div className={cn(
@@ -709,6 +716,31 @@ export default function CalendarPage() {
                       </div>
                     )}
 
+                    {relatedVisit && (
+                      <div className="p-4 bg-green-50 rounded-xl border border-green-200">
+                        <div className="flex items-center gap-2 mb-3">
+                          <div className="w-7 h-7 rounded-lg bg-green-500 text-white flex items-center justify-center">
+                            <Check className="w-4 h-4" />
+                          </div>
+                          <span className="text-sm font-bold text-green-700">已接诊</span>
+                        </div>
+                        <div className="space-y-2 text-sm">
+                          <div className="flex items-start gap-2">
+                            <Stethoscope className="w-3.5 h-3.5 text-green-600 mt-0.5 shrink-0" />
+                            <div>
+                              <span className="text-green-600 text-xs font-medium">诊断</span>
+                              <p className="text-gray-700 font-medium">{relatedVisit.diagnosis}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <DollarSign className="w-3.5 h-3.5 text-green-600 shrink-0" />
+                            <span className="text-green-600 text-xs font-medium">费用</span>
+                            <span className="text-gray-700 font-semibold">{formatCurrency(relatedVisit.totalCost)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     {showReschedule && (
                       <div className="p-4 bg-brand-50 rounded-xl border border-brand-200 space-y-3">
                         <div className="flex items-center gap-2 text-sm font-semibold text-brand-800">
@@ -745,9 +777,32 @@ export default function CalendarPage() {
                   </div>
 
                   <div className="p-5 border-t border-gray-200 flex gap-2 flex-wrap justify-end">
+                    {relatedVisit && (
+                      <button
+                        onClick={() => {
+                          window.location.hash = '#/visits';
+                        }}
+                        className="flex items-center gap-1.5 px-4 py-2 border border-green-200 bg-green-50 rounded-lg text-sm font-medium text-green-700 hover:bg-green-100 transition-colors"
+                      >
+                        <FileText className="w-4 h-4" />
+                        查看接诊详情
+                      </button>
+                    )}
                     {selectedAppointment.status !== 'cancelled' &&
-                      selectedAppointment.status !== 'completed' && (
+                      selectedAppointment.status !== 'completed' &&
+                      !relatedVisit && (
                         <>
+                          {selectedAppointment.status === 'confirmed' && (
+                            <button
+                              onClick={() => {
+                                window.location.hash = '#/visits';
+                              }}
+                              className="flex items-center gap-1.5 px-4 py-2 bg-accent-500 hover:bg-accent-600 text-white text-sm font-medium rounded-lg shadow-sm transition-all"
+                            >
+                              <Stethoscope className="w-4 h-4" />
+                              快速开单
+                            </button>
+                          )}
                           {!showReschedule ? (
                             <button
                               onClick={() => {

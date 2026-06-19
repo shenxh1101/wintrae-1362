@@ -3,6 +3,7 @@ import {
   Pill, Clock, CheckCircle2, AlertTriangle, Send, MessageCircle,
   Smartphone, Calendar, Filter, Plus, Eye, X, Bell,
   Check, Sparkles, ListChecks, CalendarDays, User, PawPrint,
+  Stethoscope, FileText,
 } from 'lucide-react';
 import { useAppStore } from '@/store/useAppStore';
 import {
@@ -72,7 +73,7 @@ const nodeColorMap: Record<ReminderStatus, string> = {
 
 export default function Medications() {
   const {
-    medicationReminders, prescriptions, pets, owners, visits,
+    medicationReminders, prescriptions, pets, owners, visits, doctors,
     generateReminders, sendReminder, confirmReminder, addPrescription,
   } = useAppStore();
 
@@ -84,6 +85,8 @@ export default function Medications() {
   const [mode, setMode] = useState<'prescription' | 'manual'>('prescription');
   const [selectedPrescriptionId, setSelectedPrescriptionId] = useState<string>('');
   const [manualForm, setManualForm] = useState<ManualFormData>(emptyManualForm);
+  const [showVisitModal, setShowVisitModal] = useState(false);
+  const [selectedVisitId, setSelectedVisitId] = useState<string | null>(null);
 
   useEffect(() => {
     const t = setTimeout(() => setLoading(false), 600);
@@ -408,6 +411,8 @@ export default function Medications() {
                           {items.map((r) => {
                             const pet = getPet(r.petId);
                             const owner = getOwner(r.petId);
+                            const prescription = getPrescription(r.prescriptionId);
+                            const relatedVisit = prescription ? visits.find((v) => v.id === prescription.visitId) : undefined;
                             return (
                               <div key={r.id} className="relative animate-fade-in">
                                 <div className={cn(
@@ -461,6 +466,18 @@ export default function Medications() {
                                       </div>
 
                                       <div className="mt-3 pt-3 border-t border-gray-50 flex items-center gap-2 flex-wrap">
+                                        {relatedVisit && (
+                                          <button
+                                            onClick={() => {
+                                              setSelectedVisitId(relatedVisit.id);
+                                              setShowVisitModal(true);
+                                            }}
+                                            className="btn-sm btn-secondary flex items-center gap-1.5 text-brand-600 border-brand-200 bg-brand-50 hover:bg-brand-100"
+                                          >
+                                            <FileText className="w-3.5 h-3.5" />
+                                            查看原接诊
+                                          </button>
+                                        )}
                                         {r.status === 'pending' && (
                                           <>
                                             <button
@@ -866,6 +883,92 @@ export default function Medications() {
                   >
                     <Send className="w-4 h-4" />
                     确认发送
+                  </button>
+                </div>
+              </div>
+            </div>
+          </>
+        );
+      })()}
+
+      {/* Visit Detail Modal */}
+      {showVisitModal && selectedVisitId && (() => {
+        const visit = visits.find((v) => v.id === selectedVisitId);
+        const pet = visit ? getPet(visit.petId) : undefined;
+        const doctor = visit ? doctors.find((d) => d.id === visit.doctorId) : undefined;
+        if (!visit) return null;
+        return (
+          <>
+            <div
+              className="fixed inset-0 bg-black/40 z-40 animate-fade-in"
+              onClick={() => { setShowVisitModal(false); setSelectedVisitId(null); }}
+            />
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+              <div className="card w-full max-w-md pointer-events-auto animate-slide-up overflow-hidden">
+                <div className="px-5 py-4 flex items-center justify-between bg-brand-50 border-b border-brand-100">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-brand-500 text-white flex items-center justify-center">
+                      <Stethoscope className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-gray-800">原接诊记录</h3>
+                      <p className="text-xs text-gray-500">该提醒来源于接诊处方</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => { setShowVisitModal(false); setSelectedVisitId(null); }}
+                    className="btn-ghost px-2 py-1.5"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="p-5 space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-50 to-info-50 flex items-center justify-center text-2xl">
+                      {pet?.avatarEmoji || '🐾'}
+                    </div>
+                    <div>
+                      <div className="font-semibold text-gray-800">{pet?.name || '未知宠物'}</div>
+                      <div className="text-xs text-gray-500">
+                        {formatDate(visit.visitDate)} · {doctor?.name || '未知医生'}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="p-3 bg-gray-50 rounded-xl">
+                      <div className="text-xs text-gray-500 mb-1">诊断</div>
+                      <div className="text-sm font-semibold text-gray-800">{visit.diagnosis}</div>
+                    </div>
+                    <div className="p-3 bg-gray-50 rounded-xl">
+                      <div className="text-xs text-gray-500 mb-1">症状</div>
+                      <div className="text-sm text-gray-700">{visit.symptoms}</div>
+                    </div>
+                    <div className="p-3 bg-gray-50 rounded-xl">
+                      <div className="text-xs text-gray-500 mb-1">治疗方案</div>
+                      <div className="text-sm text-gray-700">{visit.treatmentPlan}</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-5 border-t border-gray-50 flex gap-3">
+                  <button
+                    onClick={() => { setShowVisitModal(false); setSelectedVisitId(null); }}
+                    className="btn-secondary flex-1"
+                  >
+                    关闭
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowVisitModal(false);
+                      setSelectedVisitId(null);
+                      window.location.hash = '#/visits';
+                    }}
+                    className="btn-primary flex-1"
+                  >
+                    <FileText className="w-4 h-4" />
+                    前往接诊页
                   </button>
                 </div>
               </div>
