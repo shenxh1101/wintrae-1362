@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   ChevronLeft,
   ChevronRight,
@@ -46,6 +47,8 @@ interface NewAppointmentForm {
 }
 
 export default function CalendarPage() {
+  const navigate = useNavigate();
+
   const {
     appointments,
     pets,
@@ -780,7 +783,7 @@ export default function CalendarPage() {
                     {relatedVisit && (
                       <button
                         onClick={() => {
-                          window.location.hash = '#/visits';
+                          navigate('/visits?visitId=' + relatedVisit.id);
                         }}
                         className="flex items-center gap-1.5 px-4 py-2 border border-green-200 bg-green-50 rounded-lg text-sm font-medium text-green-700 hover:bg-green-100 transition-colors"
                       >
@@ -795,7 +798,7 @@ export default function CalendarPage() {
                           {selectedAppointment.status === 'confirmed' && (
                             <button
                               onClick={() => {
-                                window.location.hash = '#/visits';
+                                navigate('/visits?appointmentId=' + selectedAppointment.id);
                               }}
                               className="flex items-center gap-1.5 px-4 py-2 bg-accent-500 hover:bg-accent-600 text-white text-sm font-medium rounded-lg shadow-sm transition-all"
                             >

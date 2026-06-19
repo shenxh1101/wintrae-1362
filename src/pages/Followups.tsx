@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   RotateCcw, Syringe, Heart, Star, Calendar, User, Search, Filter, Plus,
   CheckCircle, Clock, AlertTriangle, X, Phone, MessageSquare, Stethoscope,
@@ -48,8 +49,11 @@ export default function Followups() {
     createFollowup, completeFollowup, updateFollowupStatus,
   } = useAppStore();
 
+  const navigate = useNavigate();
+
   const [selectedTypes, setSelectedTypes] = useState<FollowupType[]>([...followupTypes]);
   const [selectedDoctorId, setSelectedDoctorId] = useState<string>('');
+  const [filterVisitId, setFilterVisitId] = useState<string>('');
   const [dateRange, setDateRange] = useState<DateRange>('本月');
   const [customDateStart, setCustomDateStart] = useState('');
   const [customDateEnd, setCustomDateEnd] = useState('');
@@ -91,6 +95,7 @@ export default function Followups() {
     return followups.filter((f) => {
       if (selectedTypes.length > 0 && !selectedTypes.includes(f.type)) return false;
       if (selectedDoctorId && f.doctorId !== selectedDoctorId) return false;
+      if (filterVisitId && f.visitId !== filterVisitId) return false;
       if (selectedStatuses.length > 0 && !selectedStatuses.includes(f.status)) return false;
 
       if (rangeStart && rangeEnd) {
@@ -114,7 +119,7 @@ export default function Followups() {
 
       return true;
     });
-  }, [followups, selectedTypes, selectedDoctorId, dateRange, customDateStart, customDateEnd, selectedStatuses, searchTerm]);
+  }, [followups, selectedTypes, selectedDoctorId, filterVisitId, dateRange, customDateStart, customDateEnd, selectedStatuses, searchTerm]);
 
   const stats = useMemo(() => {
     const pending = filteredFollowups.filter((f) => f.status === 'pending').length;
@@ -406,6 +411,23 @@ export default function Followups() {
             ))}
           </select>
 
+          {/* Source Visit Filter */}
+          <select
+            value={filterVisitId}
+            onChange={(e) => setFilterVisitId(e.target.value)}
+            className="input lg:w-52 shrink-0"
+          >
+            <option value="">全部来源</option>
+            {visits.map((v) => {
+              const pet = getPet(v.petId);
+              return (
+                <option key={v.id} value={v.id}>
+                  {pet?.name || '-'} · {v.diagnosis.slice(0, 10)} · {v.visitDate}
+                </option>
+              );
+            })}
+          </select>
+
           {/* Date Range */}
           <div className="flex items-center gap-2 shrink-0">
             {dateRanges.map((r) => (
@@ -615,7 +637,7 @@ export default function Followups() {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                window.location.hash = '#/visits';
+                                navigate('/visits?visitId=' + f.visitId);
                               }}
                               className="mb-3 w-full text-left text-xs text-brand-600 hover:text-brand-700 flex items-center gap-1.5 bg-brand-50 hover:bg-brand-100 rounded-lg p-2 transition-colors"
                             >
@@ -761,7 +783,7 @@ export default function Followups() {
                           </div>
                           <button
                             onClick={() => {
-                              window.location.hash = '#/visits';
+                              navigate('/visits?visitId=' + selectedFollowup.visitId);
                             }}
                             className="text-xs font-medium text-brand-600 hover:text-brand-700 flex items-center gap-1"
                           >

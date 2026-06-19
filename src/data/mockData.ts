@@ -158,7 +158,7 @@ export const mockVisits: Visit[] = [
     examination: '体温39.2℃，腹部触诊敏感，心率偏快',
     diagnosis: '急性肠胃炎',
     treatmentPlan: '输液治疗3天，配合止吐药和益生菌调理',
-    totalCost: 1280, paymentStatus: 'paid',
+    totalCost: 1280, costBreakdown: { examFee: 200, medicineFee: 480, treatmentFee: 500, otherFee: 100 }, paymentStatus: 'paid',
   },
   {
     id: 'vi2', petId: 'p2', doctorId: 'd3', visitDate: format(addDays(today, -20), 'yyyy-MM-dd'),
@@ -166,7 +166,7 @@ export const mockVisits: Visit[] = [
     examination: '耳道分泌物检查发现耳螨',
     diagnosis: '耳螨感染',
     treatmentPlan: '耳道清洗+外用驱虫药，每周复查',
-    totalCost: 560, paymentStatus: 'paid',
+    totalCost: 560, costBreakdown: { examFee: 120, medicineFee: 240, treatmentFee: 150, otherFee: 50 }, paymentStatus: 'paid',
   },
   {
     id: 'vi3', petId: 'p6', doctorId: 'd1', visitDate: format(addDays(today, -7), 'yyyy-MM-dd'),
@@ -174,7 +174,7 @@ export const mockVisits: Visit[] = [
     examination: '血常规、生化指标正常，心肺功能良好',
     diagnosis: '健康，可进行手术',
     treatmentPlan: '次日进行绝育手术，术前禁食8小时',
-    totalCost: 1850, paymentStatus: 'paid',
+    totalCost: 1850, costBreakdown: { examFee: 300, medicineFee: 350, treatmentFee: 1100, otherFee: 100 }, paymentStatus: 'paid',
   },
   {
     id: 'vi4', petId: 'p3', doctorId: 'd3', visitDate: format(addDays(today, -45), 'yyyy-MM-dd'),
@@ -182,7 +182,7 @@ export const mockVisits: Visit[] = [
     examination: '皮肤刮片检查发现真菌感染',
     diagnosis: '皮肤真菌病',
     treatmentPlan: '药浴+口服抗真菌药，4周疗程',
-    totalCost: 920, paymentStatus: 'paid',
+    totalCost: 920, costBreakdown: { examFee: 150, medicineFee: 570, treatmentFee: 150, otherFee: 50 }, paymentStatus: 'paid',
   },
   {
     id: 'vi5', petId: 'p8', doctorId: 'd2', visitDate: format(addDays(today, -10), 'yyyy-MM-dd'),
@@ -190,7 +190,7 @@ export const mockVisits: Visit[] = [
     examination: '心音听诊有杂音，X光心脏轮廓增大',
     diagnosis: '早期心脏瓣膜病',
     treatmentPlan: '保守治疗，服用心脏营养药物，避免剧烈运动，3个月复查',
-    totalCost: 1560, paymentStatus: 'paid',
+    totalCost: 1560, costBreakdown: { examFee: 280, medicineFee: 960, treatmentFee: 200, otherFee: 120 }, paymentStatus: 'paid',
   },
 ];
 

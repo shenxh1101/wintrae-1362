@@ -66,8 +66,10 @@ export default function Pets() {
   const [viewMode, setViewMode] = useState<ViewMode>('pet');
   const [searchTerm, setSearchTerm] = useState('');
   const [speciesFilter, setSpeciesFilter] = useState<SpeciesFilter>('全部');
-  const [selectedPet, setSelectedPet] = useState<Pet | null>(null);
-  const [selectedOwner, setSelectedOwner] = useState<Owner | null>(null);
+  const [selectedPetId, setSelectedPetId] = useState<string | null>(null);
+  const selectedPet = selectedPetId ? pets.find((p) => p.id === selectedPetId) || null : null;
+  const [selectedOwnerId, setSelectedOwnerId] = useState<string | null>(null);
+  const selectedOwner = selectedOwnerId ? owners.find((o) => o.id === selectedOwnerId) || null : null;
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerType, setDrawerType] = useState<'pet' | 'owner'>('pet');
   const [modalOpen, setModalOpen] = useState(false);
@@ -142,7 +144,7 @@ export default function Pets() {
   };
 
   const openDetailDrawer = (pet: Pet) => {
-    setSelectedPet(pet);
+    setSelectedPetId(pet.id);
     setDrawerType('pet');
     setDrawerOpen(true);
   };
@@ -271,13 +273,13 @@ export default function Pets() {
   const getDoctor = (doctorId: string) => doctors.find((d) => d.id === doctorId);
 
   const openOwnerDetailDrawer = (owner: Owner) => {
-    setSelectedOwner(owner);
+    setSelectedOwnerId(owner.id);
     setDrawerType('owner');
     setDrawerOpen(true);
   };
 
   const openPetDetailFromOwner = (pet: Pet) => {
-    setSelectedPet(pet);
+    setSelectedPetId(pet.id);
     setDrawerType('pet');
   };
 
@@ -291,7 +293,7 @@ export default function Pets() {
   const openEditOwnerModal = (owner: Owner) => {
     setFormMode('edit');
     setModalType('owner');
-    setSelectedOwner(owner);
+    setSelectedOwnerId(owner.id);
     setOwnerFormData({
       name: owner.name,
       phone: owner.phone,

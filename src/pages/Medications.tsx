@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Pill, Clock, CheckCircle2, AlertTriangle, Send, MessageCircle,
   Smartphone, Calendar, Filter, Plus, Eye, X, Bell,
@@ -76,6 +77,8 @@ export default function Medications() {
     medicationReminders, prescriptions, pets, owners, visits, doctors,
     generateReminders, sendReminder, confirmReminder, addPrescription,
   } = useAppStore();
+
+  const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
   const [dateFilter, setDateFilter] = useState<string>(formatDate(new Date(), 'yyyy-MM-dd'));
@@ -963,7 +966,7 @@ export default function Medications() {
                     onClick={() => {
                       setShowVisitModal(false);
                       setSelectedVisitId(null);
-                      window.location.hash = '#/visits';
+                      navigate('/visits?visitId=' + visit.id);
                     }}
                     className="btn-primary flex-1"
                   >

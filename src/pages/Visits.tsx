@@ -1,15 +1,16 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   Search, Plus, FileText, Pill, Stethoscope, ClipboardList, DollarSign,
   Upload, Trash2, Edit, Printer, Send, User, PawPrint, Calendar,
   CheckCircle, XCircle, AlertCircle, Paperclip, FileImage, FileSpreadsheet,
-  Download, X, Save
+  Download, X, Save, RotateCcw, Syringe, Heart, Sparkles
 } from 'lucide-react';
 import { useAppStore } from '@/store/useAppStore';
 import { formatCurrency, formatDate, statusColor, cn } from '@/utils/format';
-import type { Visit, Prescription, VisitAttachment } from '@/types';
+import type { Visit, Prescription, VisitAttachment, CostBreakdown, FollowupType } from '@/types';
 import { uid } from '@/data/mockData';
 import { formatISO, parseISO } from 'date-fns';
+import { useSearchParams } from 'react-router-dom';
 
 type ViewMode = 'list' | 'form' | 'detail';
 type PaymentStatus = 'pending' | 'paid' | 'refunded';
@@ -25,13 +26,6 @@ interface PrescriptionFormItem {
   durationDays: number;
   unitPrice: number;
   quantity: number;
-}
-
-interface CostBreakdown {
-  examFee: number;
-  medicineFee: number;
-  treatmentFee: number;
-  otherFee: number;
 }
 
 interface AttachmentItem {
@@ -52,7 +46,15 @@ const emptyPrescription = (): PrescriptionFormItem => ({
 
 const emptyCost: CostBreakdown = { examFee: 0, medicineFee: 0, treatmentFee: 0, otherFee: 0 };
 
+const followupTemplates: { type: FollowupType; label: string; icon: any; color: string; daysOffset: number; noteTemplate: string }[] = [
+  { type: '术后', label: '术后复查', icon: RotateCcw, color: 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100', daysOffset: 3, noteTemplate: '术后伤口检查与拆线' },
+  { type: '疫苗', label: '疫苗复种', icon: Syringe, color: 'bg-sky-50 text-sky-700 border-sky-200 hover:bg-sky-100', daysOffset: 21, noteTemplate: '下一剂疫苗接种' },
+  { type: '复诊', label: '慢病复查', icon: Heart, color: 'bg-violet-50 text-violet-700 border-violet-200 hover:bg-violet-100', daysOffset: 30, noteTemplate: '慢性病定期复查' },
+  { type: '满意度', label: '满意度回访', icon: Sparkles, color: 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100', daysOffset: 3, noteTemplate: '治疗满意度回访' },
+];
+
 export default function Visits() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const {
     visits, pets, doctors, owners, prescriptions, attachments, appointments,
     createVisit, addPrescription, generateReminders, createFollowup, addAttachment,
@@ -82,6 +84,31 @@ export default function Visits() {
   const [formPaymentStatus, setFormPaymentStatus] = useState<PaymentStatus>('pending');
 
   const [toast, setToast] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
+
+  useEffect(() => {
+    const visitId = searchParams.get('visitId');
+    const appointmentId = searchParams.get('appointmentId');
+    if (visitId) {
+      const visit = visits.find((v) => v.id === visitId);
+      if (visit) {
+        setSelectedVisitId(visitId);
+        setViewMode('detail');
+      }
+      setSearchParams({}, { replace: true });
+    } else if (appointmentId) {
+      const apt = appointments.find((a) => a.id === appointmentId);
+      if (apt) {
+        resetForm();
+        setFormAppointmentId(appointmentId);
+        setFormPetId(apt.petId);
+        setFormDoctorId(apt.doctorId);
+        setFormVisitDate(apt.startTime.slice(0, 10));
+        if (apt.notes) setFormSymptoms(apt.notes);
+        setViewMode('form');
+      }
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams]);
 
   const showToast = (type: 'success' | 'error' | 'info', message: string) => {
     setToast({ type, message });
@@ -201,8 +228,7 @@ export default function Visits() {
         : [emptyPrescription()]
     );
     setFormAttachments([]);
-    const totalMeds = presc.reduce((s, p) => s + p.unitPrice * p.quantity, 0);
-    setFormCost({ ...emptyCost, medicineFee: totalMeds, examFee: Math.max(0, visit.totalCost - totalMeds) });
+    setFormCost(visit.costBreakdown || { ...emptyCost, medicineFee: presc.reduce((s, p) => s + p.unitPrice * p.quantity, 0) });
     setFormPaymentStatus(visit.paymentStatus);
     setViewMode('form');
   };
@@ -245,6 +271,13 @@ export default function Visits() {
     if (!validateForm()) return;
 
     const totalCost = Number(calcTotalCost().toFixed(2));
+    const medicineFee = Number(calcTotalMedicine().toFixed(2));
+    const costBreakdown: CostBreakdown = {
+      examFee: formCost.examFee,
+      medicineFee,
+      treatmentFee: formCost.treatmentFee,
+      otherFee: formCost.otherFee,
+    };
     const newVisit = createVisit({
       petId: formPetId,
       doctorId: formDoctorId,
@@ -255,6 +288,7 @@ export default function Visits() {
       diagnosis: formDiagnosis,
       treatmentPlan: formTreatmentPlan,
       totalCost,
+      costBreakdown,
       paymentStatus: asDraft ? 'pending' : formPaymentStatus,
     });
 
@@ -948,7 +982,7 @@ export default function Visits() {
                           <FileText className="w-5 h-5 text-brand-500" />
                           接诊详情
                         </h2>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <button onClick={() => window.print()} className="btn-sm btn-secondary">
                             <Printer className="w-3.5 h-3.5" />
                             打印病历
@@ -959,32 +993,39 @@ export default function Visits() {
                           </button>
                           <button
                             onClick={() => {
-                              createFollowup({
-                                petId: selectedVisit.petId,
-                                visitId: selectedVisit.id,
-                                type: '复诊',
-                                scheduledDate: formatISO(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), { representation: 'date' }),
-                                doctorId: selectedVisit.doctorId,
-                                status: 'pending',
-                                notes: `${selectedVisit.diagnosis} 治疗后复诊`,
-                              });
-                              showToast('success', '回访任务已生成，可在回访看板查看');
-                            }}
-                            className="btn-sm btn-secondary"
-                          >
-                            <Send className="w-3.5 h-3.5" />
-                            生成回访
-                          </button>
-                          <button
-                            onClick={() => {
                               visitPrescs.forEach((p) => generateReminders(p.id));
                               showToast('success', `已为 ${visitPrescs.length} 种药品生成用药提醒`);
                             }}
-                            className="btn-sm btn-primary"
+                            className="btn-sm btn-secondary"
                           >
                             <Pill className="w-3.5 h-3.5" />
                             生成用药提醒
                           </button>
+                          <div className="h-6 w-px bg-gray-200 mx-1" />
+                          {followupTemplates.map((tpl) => {
+                            const Icon = tpl.icon;
+                            return (
+                              <button
+                                key={tpl.type}
+                                onClick={() => {
+                                  createFollowup({
+                                    petId: selectedVisit.petId,
+                                    visitId: selectedVisit.id,
+                                    type: tpl.type,
+                                    scheduledDate: formatISO(new Date(Date.now() + tpl.daysOffset * 24 * 60 * 60 * 1000), { representation: 'date' }),
+                                    doctorId: selectedVisit.doctorId,
+                                    status: 'pending',
+                                    notes: `${selectedVisit.diagnosis} - ${tpl.noteTemplate}`,
+                                  });
+                                  showToast('success', `已生成${tpl.label}任务，可在回访看板查看`);
+                                }}
+                                className={cn('btn-sm border flex items-center gap-1.5 transition-colors', tpl.color)}
+                              >
+                                <Icon className="w-3.5 h-3.5" />
+                                {tpl.label}
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
                       <div className="flex items-start gap-6">
@@ -1190,42 +1231,38 @@ export default function Visits() {
                 <div>
                   <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
                     <DollarSign className="w-4 h-4 text-green-500" />
-                    费用汇总
+                    费用明细
                   </h3>
                   <div className="card p-5">
                     <div className="grid grid-cols-4 gap-4 mb-4">
-                      <div className="text-center p-4 bg-gray-50 rounded-xl">
-                        <div className="text-xs text-gray-400 mb-1">检查费</div>
-                        <div className="text-lg font-bold text-gray-700">
-                          {formatCurrency(
-                            Math.max(
-                              0,
-                              selectedVisit.totalCost -
-                                getVisitPrescriptions(selectedVisit.id).reduce(
-                                  (s, p) => s + p.unitPrice * p.quantity, 0
-                                )
-                            )
-                          )}
-                        </div>
-                      </div>
-                      <div className="text-center p-4 bg-brand-50 rounded-xl">
-                        <div className="text-xs text-brand-400 mb-1">药品费</div>
-                        <div className="text-lg font-bold text-brand-600">
-                          {formatCurrency(
-                            getVisitPrescriptions(selectedVisit.id).reduce(
-                              (s, p) => s + p.unitPrice * p.quantity, 0
-                            )
-                          )}
-                        </div>
-                      </div>
-                      <div className="text-center p-4 bg-accent-50 rounded-xl">
-                        <div className="text-xs text-accent-400 mb-1">治疗费</div>
-                        <div className="text-lg font-bold text-accent-600">¥0.00</div>
-                      </div>
-                      <div className="text-center p-4 bg-info-50 rounded-xl">
-                        <div className="text-xs text-info-400 mb-1">其他</div>
-                        <div className="text-lg font-bold text-info-600">¥0.00</div>
-                      </div>
+                      {(() => {
+                        const cb = selectedVisit.costBreakdown || {
+                          examFee: Math.max(0, selectedVisit.totalCost - getVisitPrescriptions(selectedVisit.id).reduce((s, p) => s + p.unitPrice * p.quantity, 0)),
+                          medicineFee: getVisitPrescriptions(selectedVisit.id).reduce((s, p) => s + p.unitPrice * p.quantity, 0),
+                          treatmentFee: 0,
+                          otherFee: 0,
+                        };
+                        return (
+                          <>
+                            <div className="text-center p-4 bg-gray-50 rounded-xl">
+                              <div className="text-xs text-gray-400 mb-1">检查费</div>
+                              <div className="text-lg font-bold text-gray-700">{formatCurrency(cb.examFee)}</div>
+                            </div>
+                            <div className="text-center p-4 bg-brand-50 rounded-xl">
+                              <div className="text-xs text-brand-400 mb-1">药品费</div>
+                              <div className="text-lg font-bold text-brand-600">{formatCurrency(cb.medicineFee)}</div>
+                            </div>
+                            <div className="text-center p-4 bg-accent-50 rounded-xl">
+                              <div className="text-xs text-accent-400 mb-1">治疗费</div>
+                              <div className="text-lg font-bold text-accent-600">{formatCurrency(cb.treatmentFee)}</div>
+                            </div>
+                            <div className="text-center p-4 bg-info-50 rounded-xl">
+                              <div className="text-xs text-info-400 mb-1">其他</div>
+                              <div className="text-lg font-bold text-info-600">{formatCurrency(cb.otherFee)}</div>
+                            </div>
+                          </>
+                        );
+                      })()}
                     </div>
                     <div className="divider" />
                     <div className="flex items-center justify-between">

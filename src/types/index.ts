@@ -61,6 +61,13 @@ export interface Appointment {
   waitlistNumber?: number;
 }
 
+export interface CostBreakdown {
+  examFee: number;
+  medicineFee: number;
+  treatmentFee: number;
+  otherFee: number;
+}
+
 export interface Visit {
   id: string;
   appointmentId?: string;
@@ -72,6 +79,7 @@ export interface Visit {
   diagnosis: string;
   treatmentPlan: string;
   totalCost: number;
+  costBreakdown: CostBreakdown;
   paymentStatus: 'pending' | 'paid' | 'refunded';
 }
 
