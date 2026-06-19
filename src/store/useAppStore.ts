@@ -34,9 +34,12 @@ interface AppState {
   setSelectedPetId: (id: string | null) => void;
   setFilterType: (t: string | null) => void;
 
-  addPet: (pet: Omit<Pet, 'id' | 'createdAt'>) => void;
-  updatePet: (id: string, data: Partial<Pet>) => void;
+  addPet: (pet: Omit<Pet, 'id' | 'createdAt'>, owner: Omit<Owner, 'id'>) => void;
+  updatePet: (id: string, data: Partial<Pet>, owner: Partial<Owner>) => void;
   deletePet: (id: string) => void;
+  addOwner: (owner: Omit<Owner, 'id'>) => string;
+  updateOwner: (id: string, data: Partial<Owner>) => void;
+  addAttachment: (data: Omit<VisitAttachment, 'id'>) => void;
 
   addAppointment: (data: Omit<Appointment, 'id'>) => void;
   updateAppointment: (id: string, data: Partial<Appointment>) => void;
@@ -77,16 +80,49 @@ export const useAppStore = create<AppState>((set, get) => ({
   setSelectedPetId: (id) => set({ selectedPetId: id }),
   setFilterType: (t) => set({ filterType: t }),
 
-  addPet: (pet) => set((s) => ({
-    pets: [...s.pets, { ...pet, id: uid(), createdAt: formatISO(new Date()) }],
+  addOwner: (owner) => {
+    const newOwner: Owner = { ...owner, id: uid() };
+    set((s) => ({ owners: [...s.owners, newOwner] }));
+    return newOwner.id;
+  },
+
+  updateOwner: (id, data) => set((s) => ({
+    owners: s.owners.map((o) => (o.id === id ? { ...o, ...data } : o)),
   })),
 
-  updatePet: (id, data) => set((s) => ({
-    pets: s.pets.map((p) => (p.id === id ? { ...p, ...data } : p)),
-  })),
+  addPet: (pet, owner) => {
+    let ownerId = pet.ownerId;
+    if (!ownerId) {
+      ownerId = uid();
+      set((s) => ({
+        owners: [...s.owners, { ...owner, id: ownerId }],
+        pets: [...s.pets, { ...pet, id: uid(), ownerId, createdAt: formatISO(new Date()) }],
+      }));
+    } else {
+      set((s) => ({
+        owners: s.owners.map((o) => (o.id === ownerId ? { ...o, ...owner } : o)),
+        pets: [...s.pets, { ...pet, id: uid(), ownerId, createdAt: formatISO(new Date()) }],
+      }));
+    }
+  },
+
+  updatePet: (id, data, owner) => {
+    set((s) => {
+      const pet = s.pets.find((p) => p.id === id);
+      const ownerId = pet?.ownerId || data.ownerId;
+      return {
+        owners: ownerId ? s.owners.map((o) => (o.id === ownerId ? { ...o, ...owner } : o)) : s.owners,
+        pets: s.pets.map((p) => (p.id === id ? { ...p, ...data } : p)),
+      };
+    });
+  },
 
   deletePet: (id) => set((s) => ({
     pets: s.pets.filter((p) => p.id !== id),
+  })),
+
+  addAttachment: (data) => set((s) => ({
+    attachments: [...s.attachments, { ...data, id: uid() }],
   })),
 
   addAppointment: (data) => set((s) => ({

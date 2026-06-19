@@ -55,7 +55,7 @@ const emptyCost: CostBreakdown = { examFee: 0, medicineFee: 0, treatmentFee: 0, 
 export default function Visits() {
   const {
     visits, pets, doctors, owners, prescriptions, attachments,
-    createVisit, addPrescription, generateReminders, createFollowup
+    createVisit, addPrescription, generateReminders, createFollowup, addAttachment
   } = useAppStore();
 
   const [viewMode, setViewMode] = useState<ViewMode>('list');
@@ -241,6 +241,7 @@ export default function Visits() {
     });
 
     const validPrescriptions = formPrescriptions.filter((p) => p.medicineName.trim());
+    const newPrescriptionIds: string[] = [];
     validPrescriptions.forEach((p) => {
       const newPresc: Omit<Prescription, 'id'> = {
         visitId: newVisit.id,
@@ -255,9 +256,22 @@ export default function Visits() {
       addPrescription(newPresc);
     });
 
+    formAttachments.forEach((a) => {
+      addAttachment({
+        visitId: newVisit.id,
+        fileName: a.fileName,
+        fileType: a.fileType === 'image' ? 'image/jpeg' : a.fileType === 'spreadsheet' ? 'application/pdf' : 'application/octet-stream',
+        fileUrl: '',
+        uploadedAt: formatISO(new Date()),
+      });
+    });
+
     if (!asDraft && validPrescriptions.length > 0) {
-      const newPrescriptions = prescriptions.filter((p) => p.visitId === newVisit.id);
-      newPrescriptions.forEach((p) => generateReminders(p.id));
+      setTimeout(() => {
+        const state = useAppStore.getState();
+        const allPrescs = state.prescriptions.filter((p) => p.visitId === newVisit.id);
+        allPrescs.forEach((p) => generateReminders(p.id));
+      }, 50);
 
       createFollowup({
         petId: formPetId,
@@ -279,6 +293,12 @@ export default function Visits() {
     pending: { label: '待支付', icon: AlertCircle, color: 'bg-accent-100 text-accent-700 border-accent-200' },
     paid: { label: '已支付', icon: CheckCircle, color: 'bg-brand-100 text-brand-700 border-brand-200' },
     refunded: { label: '已退款', icon: XCircle, color: 'bg-gray-100 text-gray-700 border-gray-200' },
+  };
+
+  const getFileType = (fileType: string): 'image' | 'spreadsheet' | 'other' => {
+    if (fileType.startsWith('image/')) return 'image';
+    if (fileType.includes('pdf') || fileType.includes('spreadsheet') || fileType.includes('excel')) return 'spreadsheet';
+    return 'other';
   };
 
   const FileIcon = ({ type }: { type: 'image' | 'spreadsheet' | 'other' }) => {
@@ -893,7 +913,18 @@ export default function Visits() {
                             编辑
                           </button>
                           <button
-                            onClick={() => showToast('success', '回访任务已生成')}
+                            onClick={() => {
+                              createFollowup({
+                                petId: selectedVisit.petId,
+                                visitId: selectedVisit.id,
+                                type: '复诊',
+                                scheduledDate: formatISO(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), { representation: 'date' }),
+                                doctorId: selectedVisit.doctorId,
+                                status: 'pending',
+                                notes: `${selectedVisit.diagnosis} 治疗后复诊`,
+                              });
+                              showToast('success', '回访任务已生成，可在回访看板查看');
+                            }}
                             className="btn-sm btn-secondary"
                           >
                             <Send className="w-3.5 h-3.5" />
@@ -1086,7 +1117,7 @@ export default function Visits() {
                           className="card p-4 flex items-center gap-3 hover:shadow-hover hover:-translate-y-0.5 transition-all cursor-pointer"
                         >
                           <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-info-50 to-info-100 flex items-center justify-center shrink-0">
-                            <FileIcon type={a.fileType as any} />
+                            <FileIcon type={getFileType(a.fileType)} />
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="font-medium text-gray-800 truncate">{a.fileName}</div>

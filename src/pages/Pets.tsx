@@ -129,10 +129,12 @@ export default function Pets() {
   const handleSubmit = () => {
     if (!formData.name || !formData.ownerName || !formData.ownerPhone) return;
 
-    let ownerId = formData.ownerId;
-    if (!ownerId) {
-      ownerId = uid();
-    }
+    const ownerPayload = {
+      name: formData.ownerName,
+      phone: formData.ownerPhone,
+      email: formData.ownerEmail,
+      address: formData.ownerAddress,
+    };
 
     const petPayload = {
       name: formData.name,
@@ -142,16 +144,16 @@ export default function Pets() {
       gender: formData.gender,
       weight: Number(formData.weight),
       avatar: '',
-      ownerId,
+      ownerId: formData.ownerId || '',
       allergies: formData.allergies,
       vaccines: formData.vaccines,
       avatarEmoji: getAvatarEmoji(formData.species),
     };
 
     if (formMode === 'add') {
-      addPet(petPayload);
-    } else if (selectedPet || formData.ownerId) {
-      updatePet(formMode === 'edit' && selectedPet ? selectedPet.id : formData.ownerId, petPayload);
+      addPet(petPayload, ownerPayload);
+    } else if (selectedPet) {
+      updatePet(selectedPet.id, petPayload, ownerPayload);
     }
 
     closeModal();
