@@ -4,7 +4,7 @@ import {
   RotateCcw, Syringe, Heart, Star, Calendar, User, Search, Filter, Plus,
   CheckCircle, Clock, AlertTriangle, X, Phone, MessageSquare, Stethoscope,
   FileText, ChevronRight, MoreHorizontal, Trash2, Sparkles, Activity,
-  Target, Award,
+  Target, Award, Edit2, ChevronDown,
 } from 'lucide-react';
 import {
   startOfWeek, endOfWeek, startOfMonth, endOfMonth, isWithinInterval,
@@ -46,7 +46,7 @@ const emptyNewForm: NewFollowupForm = {
 export default function Followups() {
   const {
     followups, pets, owners, doctors, visits,
-    createFollowup, completeFollowup, updateFollowupStatus,
+    createFollowup, completeFollowup, updateFollowupStatus, updateFollowup,
   } = useAppStore();
 
   const navigate = useNavigate();
@@ -67,6 +67,23 @@ export default function Followups() {
   const [detailFeedback, setDetailFeedback] = useState('');
   const [detailContent, setDetailContent] = useState('');
   const [hoveredCard, setHoveredCard] = useState<string | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState<{
+    scheduledDate: string;
+    doctorId: string;
+    status: FollowupStatus;
+    notes: string;
+    feedback: string;
+    satisfactionScore: number;
+  }>({
+    scheduledDate: '',
+    doctorId: '',
+    status: 'pending',
+    notes: '',
+    feedback: '',
+    satisfactionScore: 0,
+  });
+  const [openStatusDropdown, setOpenStatusDropdown] = useState<string | null>(null);
 
   const getPet = (id: string): Pet | undefined => pets.find((p) => p.id === id);
   const getDoctor = (id: string): Doctor | undefined => doctors.find((d) => d.id === id);
@@ -204,6 +221,15 @@ export default function Followups() {
     setDetailRating(f.satisfactionScore || 0);
     setDetailFeedback(f.feedback || '');
     setDetailContent('');
+    setIsEditing(false);
+    setEditForm({
+      scheduledDate: f.scheduledDate,
+      doctorId: f.doctorId,
+      status: f.status,
+      notes: f.notes,
+      feedback: f.feedback || '',
+      satisfactionScore: f.satisfactionScore || 0,
+    });
     setShowDetailModal(true);
   };
 
@@ -220,6 +246,75 @@ export default function Followups() {
     });
     setShowDetailModal(false);
     setSelectedFollowup(null);
+  };
+
+  const handleStartEditing = () => {
+    if (!selectedFollowup) return;
+    setEditForm({
+      scheduledDate: selectedFollowup.scheduledDate,
+      doctorId: selectedFollowup.doctorId,
+      status: selectedFollowup.status,
+      notes: selectedFollowup.notes,
+      feedback: selectedFollowup.feedback || '',
+      satisfactionScore: selectedFollowup.satisfactionScore || 0,
+    });
+    setIsEditing(true);
+  };
+
+  const handleCancelEditing = () => {
+    setIsEditing(false);
+    if (selectedFollowup) {
+      setEditForm({
+        scheduledDate: selectedFollowup.scheduledDate,
+        doctorId: selectedFollowup.doctorId,
+        status: selectedFollowup.status,
+        notes: selectedFollowup.notes,
+        feedback: selectedFollowup.feedback || '',
+        satisfactionScore: selectedFollowup.satisfactionScore || 0,
+      });
+    }
+  };
+
+  const handleSaveEdit = () => {
+    if (!selectedFollowup) return;
+    
+    if (editForm.status === 'completed' && selectedFollowup.status !== 'completed') {
+      completeFollowup(selectedFollowup.id, {
+        feedback: editForm.feedback,
+        satisfactionScore: editForm.satisfactionScore,
+        scheduledDate: editForm.scheduledDate,
+        doctorId: editForm.doctorId,
+        notes: editForm.notes,
+      });
+    } else {
+      updateFollowup(selectedFollowup.id, {
+        scheduledDate: editForm.scheduledDate,
+        doctorId: editForm.doctorId,
+        status: editForm.status,
+        notes: editForm.notes,
+        feedback: editForm.feedback,
+        satisfactionScore: editForm.satisfactionScore,
+      });
+    }
+    
+    setIsEditing(false);
+    setSelectedFollowup({
+      ...selectedFollowup,
+      scheduledDate: editForm.scheduledDate,
+      doctorId: editForm.doctorId,
+      status: editForm.status,
+      notes: editForm.notes,
+      feedback: editForm.feedback,
+      satisfactionScore: editForm.satisfactionScore,
+      ...(editForm.status === 'completed' && selectedFollowup.status !== 'completed'
+        ? { completedDate: new Date().toISOString() }
+        : {}),
+    });
+  };
+
+  const handleQuickStatusChange = (followupId: string, newStatus: FollowupStatus) => {
+    updateFollowupStatus(followupId, newStatus);
+    setOpenStatusDropdown(null);
   };
 
   const handleCancelFollowup = (id: string) => {
@@ -652,9 +747,47 @@ export default function Followups() {
                               <Calendar className="w-3.5 h-3.5" />
                               <span>{formatDate(f.scheduledDate, 'MM-dd')}</span>
                             </div>
-                            <span className={cn('badge', statusColor(f.status))}>
-                              {statusText(f.status)}
-                            </span>
+                            <div className="relative">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setOpenStatusDropdown(openStatusDropdown === f.id ? null : f.id);
+                                }}
+                                className={cn('badge flex items-center gap-1 cursor-pointer', statusColor(f.status))}
+                              >
+                                {statusText(f.status)}
+                                <ChevronDown className="w-3 h-3" />
+                              </button>
+                              {openStatusDropdown === f.id && (
+                                <>
+                                  <div
+                                    className="fixed inset-0 z-10"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setOpenStatusDropdown(null);
+                                    }}
+                                  />
+                                  <div className="absolute right-0 mt-1 w-32 bg-white rounded-xl shadow-lg border border-gray-200 py-1 z-20">
+                                    {(['pending', 'in_progress', 'completed', 'cancelled'] as FollowupStatus[]).map((s) => (
+                                      <button
+                                        key={s}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleQuickStatusChange(f.id, s);
+                                        }}
+                                        className={cn(
+                                          'w-full px-3 py-2 text-xs text-left hover:bg-gray-50 flex items-center gap-2',
+                                          f.status === s ? 'text-brand-600 font-medium bg-brand-50' : 'text-gray-600'
+                                        )}
+                                      >
+                                        <span className={cn('w-2 h-2 rounded-full', statusColor(s).replace('text-', 'bg-').split(' ')[0])} />
+                                        {statusText(s)}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </>
+                              )}
+                            </div>
                           </div>
 
                           {f.satisfactionScore && f.status === 'completed' && (
@@ -714,7 +847,7 @@ export default function Followups() {
                           <div className="flex items-center gap-3 text-sm text-gray-500">
                             <span className="flex items-center gap-1">
                               <Calendar className="w-3.5 h-3.5" />
-                              建议日期：{formatDate(selectedFollowup.scheduledDate)}
+                              建议日期：{formatDate(isEditing ? editForm.scheduledDate : selectedFollowup.scheduledDate)}
                             </span>
                             <span className={cn(
                               'px-2 py-0.5 rounded-full text-xs font-medium',
@@ -727,12 +860,23 @@ export default function Followups() {
                           </div>
                         </div>
                       </div>
-                      <button
-                        onClick={() => { setShowDetailModal(false); setSelectedFollowup(null); }}
-                        className="w-9 h-9 rounded-xl bg-white/80 hover:bg-white flex items-center justify-center text-gray-500 transition-colors shadow-sm"
-                      >
-                        <X className="w-5 h-5" />
-                      </button>
+                      <div className="flex items-center gap-2">
+                        {!isEditing && (
+                          <button
+                            onClick={handleStartEditing}
+                            className="w-9 h-9 rounded-xl bg-white/80 hover:bg-white flex items-center justify-center text-gray-500 hover:text-brand-600 transition-colors shadow-sm"
+                            title="编辑"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                        )}
+                        <button
+                          onClick={() => { setShowDetailModal(false); setSelectedFollowup(null); }}
+                          className="w-9 h-9 rounded-xl bg-white/80 hover:bg-white flex items-center justify-center text-gray-500 transition-colors shadow-sm"
+                        >
+                          <X className="w-5 h-5" />
+                        </button>
+                      </div>
                     </div>
                   </div>
 
@@ -762,14 +906,68 @@ export default function Followups() {
                       </div>
                     )}
 
-                    {doctor && (
-                      <div className="p-3 bg-gray-50 rounded-xl flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-xl">
-                          {doctor.avatarEmoji}
+                    {isEditing ? (
+                      <div>
+                        <label className="label flex items-center gap-1.5">
+                          <User className="w-4 h-4 text-gray-400" />
+                          负责医生
+                        </label>
+                        <select
+                          value={editForm.doctorId}
+                          onChange={(e) => setEditForm({ ...editForm, doctorId: e.target.value })}
+                          className="input"
+                        >
+                          <option value="">请选择医生</option>
+                          {doctors.map((d) => (
+                            <option key={d.id} value={d.id}>
+                              {d.avatarEmoji} {d.name} - {d.title}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    ) : (
+                      doctor && (
+                        <div className="p-3 bg-gray-50 rounded-xl flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-xl">
+                            {doctor.avatarEmoji}
+                          </div>
+                          <div>
+                            <div className="text-sm font-semibold text-gray-800">{doctor.name}</div>
+                            <div className="text-xs text-gray-500">{doctor.title}</div>
+                          </div>
+                        </div>
+                      )
+                    )}
+
+                    {isEditing && (
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="label flex items-center gap-1.5">
+                            <Calendar className="w-4 h-4 text-gray-400" />
+                            回访日期
+                          </label>
+                          <input
+                            type="date"
+                            value={editForm.scheduledDate}
+                            onChange={(e) => setEditForm({ ...editForm, scheduledDate: e.target.value })}
+                            className="input"
+                          />
                         </div>
                         <div>
-                          <div className="text-sm font-semibold text-gray-800">{doctor.name}</div>
-                          <div className="text-xs text-gray-500">{doctor.title}</div>
+                          <label className="label flex items-center gap-1.5">
+                            <Clock className="w-4 h-4 text-gray-400" />
+                            状态
+                          </label>
+                          <select
+                            value={editForm.status}
+                            onChange={(e) => setEditForm({ ...editForm, status: e.target.value as FollowupStatus })}
+                            className="input"
+                          >
+                            <option value="pending">待处理</option>
+                            <option value="in_progress">进行中</option>
+                            <option value="completed">已完成</option>
+                            <option value="cancelled">已取消</option>
+                          </select>
                         </div>
                       </div>
                     )}
@@ -808,40 +1006,42 @@ export default function Followups() {
                       </div>
                     )}
 
-                    {selectedFollowup.notes && (
-                      <div className="p-4 bg-gray-50 rounded-xl">
-                        <div className="flex items-center gap-2 mb-2">
-                          <FileText className="w-4 h-4 text-gray-500" />
-                          <span className="text-sm font-semibold text-gray-700">回访备注</span>
-                        </div>
-                        <p className="text-sm text-gray-600 leading-relaxed">{selectedFollowup.notes}</p>
+                    {isEditing ? (
+                      <div>
+                        <label className="label flex items-center gap-1.5">
+                          <FileText className="w-4 h-4 text-gray-400" />
+                          回访备注
+                        </label>
+                        <textarea
+                          value={editForm.notes}
+                          onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
+                          rows={3}
+                          placeholder="请输入回访备注..."
+                          className="input resize-none"
+                        />
                       </div>
+                    ) : (
+                      selectedFollowup.notes && (
+                        <div className="p-4 bg-gray-50 rounded-xl">
+                          <div className="flex items-center gap-2 mb-2">
+                            <FileText className="w-4 h-4 text-gray-500" />
+                            <span className="text-sm font-semibold text-gray-700">回访备注</span>
+                          </div>
+                          <p className="text-sm text-gray-600 leading-relaxed">{selectedFollowup.notes}</p>
+                        </div>
+                      )
                     )}
 
-                    {selectedFollowup.status !== 'completed' && selectedFollowup.status !== 'cancelled' && (
+                    {isEditing ? (
                       <>
-                        <div>
-                          <label className="label flex items-center gap-1.5">
-                            <MessageSquare className="w-4 h-4 text-gray-400" />
-                            回访内容
-                          </label>
-                          <textarea
-                            value={detailContent}
-                            onChange={(e) => setDetailContent(e.target.value)}
-                            rows={3}
-                            placeholder="请记录本次回访的内容..."
-                            className="input resize-none"
-                          />
-                        </div>
-
                         <div>
                           <label className="label flex items-center gap-1.5">
                             <MessageSquare className="w-4 h-4 text-gray-400" />
                             主人反馈
                           </label>
                           <textarea
-                            value={detailFeedback}
-                            onChange={(e) => setDetailFeedback(e.target.value)}
+                            value={editForm.feedback}
+                            onChange={(e) => setEditForm({ ...editForm, feedback: e.target.value })}
                             rows={3}
                             placeholder="请记录主人的反馈意见..."
                             className="input resize-none"
@@ -855,23 +1055,76 @@ export default function Followups() {
                           </label>
                           <div className="p-4 bg-gray-50 rounded-xl">
                             <div className="flex items-center gap-3">
-                              {renderStars(detailRating, true, (n) => setDetailRating(n), 'lg')}
-                              {detailRating > 0 && (
+                              {renderStars(editForm.satisfactionScore, true, (n) => setEditForm({ ...editForm, satisfactionScore: n }), 'lg')}
+                              {editForm.satisfactionScore > 0 && (
                                 <span className="text-sm text-gray-600 font-medium">
-                                  {detailRating === 1 && '非常不满意'}
-                                  {detailRating === 2 && '不满意'}
-                                  {detailRating === 3 && '一般'}
-                                  {detailRating === 4 && '满意'}
-                                  {detailRating === 5 && '非常满意'}
+                                  {editForm.satisfactionScore === 1 && '非常不满意'}
+                                  {editForm.satisfactionScore === 2 && '不满意'}
+                                  {editForm.satisfactionScore === 3 && '一般'}
+                                  {editForm.satisfactionScore === 4 && '满意'}
+                                  {editForm.satisfactionScore === 5 && '非常满意'}
                                 </span>
                               )}
                             </div>
                           </div>
                         </div>
                       </>
+                    ) : (
+                      selectedFollowup.status !== 'completed' && selectedFollowup.status !== 'cancelled' && (
+                        <>
+                          <div>
+                            <label className="label flex items-center gap-1.5">
+                              <MessageSquare className="w-4 h-4 text-gray-400" />
+                              回访内容
+                            </label>
+                            <textarea
+                              value={detailContent}
+                              onChange={(e) => setDetailContent(e.target.value)}
+                              rows={3}
+                              placeholder="请记录本次回访的内容..."
+                              className="input resize-none"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="label flex items-center gap-1.5">
+                              <MessageSquare className="w-4 h-4 text-gray-400" />
+                              主人反馈
+                            </label>
+                            <textarea
+                              value={detailFeedback}
+                              onChange={(e) => setDetailFeedback(e.target.value)}
+                              rows={3}
+                              placeholder="请记录主人的反馈意见..."
+                              className="input resize-none"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="label flex items-center gap-1.5">
+                              <Star className="w-4 h-4 text-gray-400" />
+                              满意度评分
+                            </label>
+                            <div className="p-4 bg-gray-50 rounded-xl">
+                              <div className="flex items-center gap-3">
+                                {renderStars(detailRating, true, (n) => setDetailRating(n), 'lg')}
+                                {detailRating > 0 && (
+                                  <span className="text-sm text-gray-600 font-medium">
+                                    {detailRating === 1 && '非常不满意'}
+                                    {detailRating === 2 && '不满意'}
+                                    {detailRating === 3 && '一般'}
+                                    {detailRating === 4 && '满意'}
+                                    {detailRating === 5 && '非常满意'}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </>
+                      )
                     )}
 
-                    {selectedFollowup.status === 'completed' && (
+                    {!isEditing && selectedFollowup.status === 'completed' && (
                       <div className="p-4 bg-brand-50 rounded-xl border border-brand-100 space-y-4">
                         <div className="flex items-center gap-2">
                           <CheckCircle className="w-5 h-5 text-brand-600" />
@@ -897,40 +1150,60 @@ export default function Followups() {
                   </div>
 
                   <div className="p-5 border-t border-gray-200 flex gap-2 justify-end flex-wrap bg-gray-50/50">
-                    {selectedFollowup.status !== 'completed' && selectedFollowup.status !== 'cancelled' && (
+                    {isEditing ? (
                       <>
-                        {selectedFollowup.status === 'pending' && (
-                          <button
-                            onClick={() => handleStartFollowup(selectedFollowup)}
-                            className="btn btn-accent"
-                          >
-                            <Phone className="w-4 h-4" />
-                            开始回访
-                          </button>
-                        )}
                         <button
-                          onClick={handleCompleteFollowup}
-                          disabled={detailRating === 0}
+                          onClick={handleCancelEditing}
+                          className="btn btn-secondary"
+                        >
+                          取消
+                        </button>
+                        <button
+                          onClick={handleSaveEdit}
                           className="btn-primary"
                         >
                           <CheckCircle className="w-4 h-4" />
-                          完成回访
+                          保存
                         </button>
+                      </>
+                    ) : (
+                      <>
+                        {selectedFollowup.status !== 'completed' && selectedFollowup.status !== 'cancelled' && (
+                          <>
+                            {selectedFollowup.status === 'pending' && (
+                              <button
+                                onClick={() => handleStartFollowup(selectedFollowup)}
+                                className="btn btn-accent"
+                              >
+                                <Phone className="w-4 h-4" />
+                                开始回访
+                              </button>
+                            )}
+                            <button
+                              onClick={handleCompleteFollowup}
+                              disabled={detailRating === 0}
+                              className="btn-primary"
+                            >
+                              <CheckCircle className="w-4 h-4" />
+                              完成回访
+                            </button>
+                            <button
+                              onClick={() => handleCancelFollowup(selectedFollowup.id)}
+                              className="btn btn-secondary text-red-600 border-red-200 hover:bg-red-50"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                              取消
+                            </button>
+                          </>
+                        )}
                         <button
-                          onClick={() => handleCancelFollowup(selectedFollowup.id)}
-                          className="btn btn-secondary text-red-600 border-red-200 hover:bg-red-50"
+                          onClick={() => { setShowDetailModal(false); setSelectedFollowup(null); }}
+                          className="btn btn-secondary"
                         >
-                          <Trash2 className="w-4 h-4" />
-                          取消
+                          关闭
                         </button>
                       </>
                     )}
-                    <button
-                      onClick={() => { setShowDetailModal(false); setSelectedFollowup(null); }}
-                      className="btn btn-secondary"
-                    >
-                      关闭
-                    </button>
                   </div>
                 </>
               );

@@ -470,16 +470,25 @@ export default function Medications() {
 
                                       <div className="mt-3 pt-3 border-t border-gray-50 flex items-center gap-2 flex-wrap">
                                         {relatedVisit && (
-                                          <button
-                                            onClick={() => {
-                                              setSelectedVisitId(relatedVisit.id);
-                                              setShowVisitModal(true);
-                                            }}
-                                            className="btn-sm btn-secondary flex items-center gap-1.5 text-brand-600 border-brand-200 bg-brand-50 hover:bg-brand-100"
-                                          >
-                                            <FileText className="w-3.5 h-3.5" />
-                                            查看原接诊
-                                          </button>
+                                          <>
+                                            <button
+                                              onClick={() => navigate('/visits?visitId=' + relatedVisit.id)}
+                                              className="btn-sm btn-primary flex items-center gap-1.5"
+                                            >
+                                              <FileText className="w-3.5 h-3.5" />
+                                              查看接诊
+                                            </button>
+                                            <button
+                                              onClick={() => {
+                                                setSelectedVisitId(relatedVisit.id);
+                                                setShowVisitModal(true);
+                                              }}
+                                              className="btn-sm btn-secondary flex items-center gap-1.5"
+                                            >
+                                              <Eye className="w-3.5 h-3.5" />
+                                              快速预览
+                                            </button>
+                                          </>
                                         )}
                                         {r.status === 'pending' && (
                                           <>
@@ -955,24 +964,32 @@ export default function Medications() {
                   </div>
                 </div>
 
-                <div className="p-5 border-t border-gray-50 flex gap-3">
-                  <button
-                    onClick={() => { setShowVisitModal(false); setSelectedVisitId(null); }}
-                    className="btn-secondary flex-1"
-                  >
-                    关闭
-                  </button>
+                <div className="p-5 border-t border-gray-50 space-y-3">
                   <button
                     onClick={() => {
                       setShowVisitModal(false);
                       setSelectedVisitId(null);
                       navigate('/visits?visitId=' + visit.id);
                     }}
-                    className="btn-primary flex-1"
+                    className="btn-primary w-full"
                   >
                     <FileText className="w-4 h-4" />
-                    前往接诊页
+                    前往接诊详情
                   </button>
+                  <div className="flex items-center justify-between">
+                    <button
+                      onClick={() => { setShowVisitModal(false); setSelectedVisitId(null); }}
+                      className="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1"
+                    >
+                      ← 返回用药提醒
+                    </button>
+                    <button
+                      onClick={() => { setShowVisitModal(false); setSelectedVisitId(null); }}
+                      className="btn-secondary"
+                    >
+                      关闭
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

@@ -49,7 +49,9 @@ interface AppState {
   completeAppointment: (id: string) => void;
 
   createVisit: (data: Omit<Visit, 'id'>) => Visit;
+  updateVisit: (id: string, data: Partial<Visit>) => void;
   addPrescription: (data: Omit<Prescription, 'id'>) => void;
+  deletePrescriptionsByVisit: (visitId: string) => void;
   getVisitByAppointment: (appointmentId: string) => Visit | undefined;
 
   generateReminders: (prescriptionId: string) => void;
@@ -58,6 +60,7 @@ interface AppState {
 
   createFollowup: (data: Omit<Followup, 'id'>) => void;
   completeFollowup: (id: string, data: Partial<Followup>) => void;
+  updateFollowup: (id: string, data: Partial<Followup>) => void;
   updateFollowupStatus: (id: string, status: FollowupStatus) => void;
 }
 
@@ -160,8 +163,16 @@ export const useAppStore = create<AppState>()(
         return visit;
       },
 
+      updateVisit: (id, data) => set((s) => ({
+        visits: s.visits.map((v) => (v.id === id ? { ...v, ...data } : v)),
+      })),
+
       addPrescription: (data) => set((s) => ({
         prescriptions: [...s.prescriptions, { ...data, id: uid() }],
+      })),
+
+      deletePrescriptionsByVisit: (visitId) => set((s) => ({
+        prescriptions: s.prescriptions.filter((p) => p.visitId !== visitId),
       })),
 
       getVisitByAppointment: (appointmentId) => {
@@ -233,6 +244,10 @@ export const useAppStore = create<AppState>()(
         followups: s.followups.map((f) =>
           f.id === id ? { ...f, ...data, status: 'completed', completedDate: formatISO(new Date()) } : f
         ),
+      })),
+
+      updateFollowup: (id, data) => set((s) => ({
+        followups: s.followups.map((f) => (f.id === id ? { ...f, ...data } : f)),
       })),
 
       updateFollowupStatus: (id, status) => set((s) => ({

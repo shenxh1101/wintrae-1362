@@ -56,18 +56,21 @@ const followupTemplates: { type: FollowupType; label: string; icon: any; color: 
 export default function Visits() {
   const [searchParams, setSearchParams] = useSearchParams();
   const {
-    visits, pets, doctors, owners, prescriptions, attachments, appointments,
-    createVisit, addPrescription, generateReminders, createFollowup, addAttachment,
+    visits, pets, doctors, owners, prescriptions, attachments, appointments, followups,
+    createVisit, updateVisit, deletePrescriptionsByVisit,
+    addPrescription, generateReminders, createFollowup, addAttachment,
     completeAppointment,
   } = useAppStore();
 
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [selectedVisitId, setSelectedVisitId] = useState<string | null>(null);
+  const [editingVisitId, setEditingVisitId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterPetId, setFilterPetId] = useState<string>('');
   const [filterDoctorId, setFilterDoctorId] = useState<string>('');
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
+  const [filterPaymentStatus, setFilterPaymentStatus] = useState<string>('');
 
   const [formPetId, setFormPetId] = useState('');
   const [formDoctorId, setFormDoctorId] = useState('');
@@ -144,13 +147,14 @@ export default function Visits() {
 
       const matchesPet = !filterPetId || visit.petId === filterPetId;
       const matchesDoctor = !filterDoctorId || visit.doctorId === filterDoctorId;
+      const matchesPayment = !filterPaymentStatus || visit.paymentStatus === filterPaymentStatus;
       const visitDate = parseISO(visit.visitDate);
       const matchesFrom = !filterDateFrom || visitDate >= parseISO(filterDateFrom);
       const matchesTo = !filterDateTo || visitDate <= parseISO(filterDateTo);
 
-      return matchesSearch && matchesPet && matchesDoctor && matchesFrom && matchesTo;
+      return matchesSearch && matchesPet && matchesDoctor && matchesPayment && matchesFrom && matchesTo;
     }).sort((a, b) => new Date(b.visitDate).getTime() - new Date(a.visitDate).getTime());
-  }, [visits, pets, owners, doctors, searchTerm, filterPetId, filterDoctorId, filterDateFrom, filterDateTo]);
+  }, [visits, pets, owners, doctors, searchTerm, filterPetId, filterDoctorId, filterPaymentStatus, filterDateFrom, filterDateTo]);
 
   const selectedVisit = selectedVisitId ? visits.find((v) => v.id === selectedVisitId) : null;
 
@@ -177,6 +181,7 @@ export default function Visits() {
     setFormAttachments([]);
     setFormCost({ ...emptyCost });
     setFormPaymentStatus('pending');
+    setEditingVisitId(null);
   };
 
   const handleSelectAppointment = (appointmentId: string) => {
@@ -195,16 +200,19 @@ export default function Visits() {
   const openNewForm = () => {
     resetForm();
     setSelectedVisitId(null);
+    setEditingVisitId(null);
     setViewMode('form');
   };
 
   const openDetail = (visitId: string) => {
     setSelectedVisitId(visitId);
+    setEditingVisitId(null);
     setViewMode('detail');
   };
 
   const editVisit = (visit: Visit) => {
     const presc = getVisitPrescriptions(visit.id);
+    setEditingVisitId(visit.id);
     setFormPetId(visit.petId);
     setFormDoctorId(visit.doctorId);
     setFormAppointmentId(visit.appointmentId || '');
@@ -278,25 +286,48 @@ export default function Visits() {
       treatmentFee: formCost.treatmentFee,
       otherFee: formCost.otherFee,
     };
-    const newVisit = createVisit({
-      petId: formPetId,
-      doctorId: formDoctorId,
-      appointmentId: formAppointmentId || undefined,
-      visitDate: formVisitDate,
-      symptoms: formSymptoms,
-      examination: formExamination + (formAuxiliaryExam ? `\n【辅助检查】${formAuxiliaryExam}` : ''),
-      diagnosis: formDiagnosis,
-      treatmentPlan: formTreatmentPlan,
-      totalCost,
-      costBreakdown,
-      paymentStatus: asDraft ? 'pending' : formPaymentStatus,
-    });
+
+    let visitId: string;
+    let isNew = false;
+
+    if (editingVisitId) {
+      updateVisit(editingVisitId, {
+        petId: formPetId,
+        doctorId: formDoctorId,
+        appointmentId: formAppointmentId || undefined,
+        visitDate: formVisitDate,
+        symptoms: formSymptoms,
+        examination: formExamination + (formAuxiliaryExam ? `\n【辅助检查】${formAuxiliaryExam}` : ''),
+        diagnosis: formDiagnosis,
+        treatmentPlan: formTreatmentPlan,
+        totalCost,
+        costBreakdown,
+        paymentStatus: asDraft ? 'pending' : formPaymentStatus,
+      });
+      visitId = editingVisitId;
+      deletePrescriptionsByVisit(visitId);
+    } else {
+      const newVisit = createVisit({
+        petId: formPetId,
+        doctorId: formDoctorId,
+        appointmentId: formAppointmentId || undefined,
+        visitDate: formVisitDate,
+        symptoms: formSymptoms,
+        examination: formExamination + (formAuxiliaryExam ? `\n【辅助检查】${formAuxiliaryExam}` : ''),
+        diagnosis: formDiagnosis,
+        treatmentPlan: formTreatmentPlan,
+        totalCost,
+        costBreakdown,
+        paymentStatus: asDraft ? 'pending' : formPaymentStatus,
+      });
+      visitId = newVisit.id;
+      isNew = true;
+    }
 
     const validPrescriptions = formPrescriptions.filter((p) => p.medicineName.trim());
-    const newPrescriptionIds: string[] = [];
     validPrescriptions.forEach((p) => {
       const newPresc: Omit<Prescription, 'id'> = {
-        visitId: newVisit.id,
+        visitId,
         medicineName: p.medicineName,
         dosage: p.dosage,
         frequency: p.frequency,
@@ -310,7 +341,7 @@ export default function Visits() {
 
     formAttachments.forEach((a) => {
       addAttachment({
-        visitId: newVisit.id,
+        visitId,
         fileName: a.fileName,
         fileType: a.fileType === 'image' ? 'image/jpeg' : a.fileType === 'spreadsheet' ? 'application/pdf' : 'application/octet-stream',
         fileUrl: '',
@@ -318,16 +349,16 @@ export default function Visits() {
       });
     });
 
-    if (!asDraft && validPrescriptions.length > 0) {
+    if (!asDraft && validPrescriptions.length > 0 && isNew) {
       setTimeout(() => {
         const state = useAppStore.getState();
-        const allPrescs = state.prescriptions.filter((p) => p.visitId === newVisit.id);
+        const allPrescs = state.prescriptions.filter((p) => p.visitId === visitId);
         allPrescs.forEach((p) => generateReminders(p.id));
       }, 50);
 
       createFollowup({
         petId: formPetId,
-        visitId: newVisit.id,
+        visitId,
         type: '复诊',
         scheduledDate: formatISO(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), { representation: 'date' }),
         doctorId: formDoctorId,
@@ -340,8 +371,9 @@ export default function Visits() {
       completeAppointment(formAppointmentId);
     }
 
-    showToast('success', asDraft ? '草稿已保存' : '开单成功！已生成用药提醒和回访计划');
-    setSelectedVisitId(newVisit.id);
+    showToast('success', asDraft ? '草稿已保存' : (isNew ? '开单成功！已生成用药提醒和回访计划' : '接诊已更新'));
+    setEditingVisitId(null);
+    setSelectedVisitId(visitId);
     setViewMode('detail');
   };
 
@@ -428,6 +460,16 @@ export default function Visits() {
               {doctors.map((d) => (
                 <option key={d.id} value={d.id}>{d.avatarEmoji} {d.name}</option>
               ))}
+            </select>
+            <select
+              value={filterPaymentStatus}
+              onChange={(e) => setFilterPaymentStatus(e.target.value)}
+              className="input input-sm"
+            >
+              <option value="">全部支付状态</option>
+              <option value="pending">待支付</option>
+              <option value="paid">已支付</option>
+              <option value="refunded">已退款</option>
             </select>
             <input
               type="date"
@@ -1045,8 +1087,8 @@ export default function Visits() {
                               </span>
                             </div>
                             <div className="text-sm text-gray-600 flex items-center gap-1.5">
-                              <User className="w-3.5 h-3.5 text-gray-400" />
-                              {owner?.name || '-'} · {owner?.phone || '-'}
+                              <PawPrint className="w-3.5 h-3.5 text-gray-400" />
+                              {pet?.age || '-'}岁 · {pet?.gender || '-'} · {pet?.weight || '-'}kg
                             </div>
                             <div className="text-sm text-gray-600 flex items-center gap-1.5">
                               <Calendar className="w-3.5 h-3.5 text-gray-400" />
@@ -1063,6 +1105,30 @@ export default function Visits() {
                             </div>
                           </div>
                         </div>
+
+                        {/* Owner Info Card */}
+                        <div className="bg-white rounded-2xl shadow-sm p-4 min-w-[220px]">
+                          <div className="text-xs text-gray-400 uppercase tracking-wide mb-2">主人信息</div>
+                          <div className="space-y-2 text-sm">
+                            <div className="flex items-center gap-2">
+                              <span className="w-12 text-gray-400">姓名</span>
+                              <span className="font-medium text-gray-800">{owner?.name || '-'}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="w-12 text-gray-400">电话</span>
+                              <span className="text-gray-700 font-mono">{owner?.phone || '-'}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="w-12 text-gray-400">邮箱</span>
+                              <span className="text-gray-700">{owner?.email || '-'}</span>
+                            </div>
+                            <div className="flex items-start gap-2">
+                              <span className="w-12 text-gray-400 shrink-0">地址</span>
+                              <span className="text-gray-700 line-clamp-2">{owner?.address || '-'}</span>
+                            </div>
+                          </div>
+                        </div>
+
                         <div className="ml-auto flex items-center gap-4">
                           <div className="text-center p-4 bg-white rounded-2xl shadow-sm">
                             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-info-50 to-info-100 flex items-center justify-center text-2xl mx-auto mb-2">
@@ -1227,51 +1293,149 @@ export default function Visits() {
                   </div>
                 )}
 
-                {/* Cost Summary */}
+                {/* Followup Tasks */}
+                {(() => {
+                  const visitFollowups = followups.filter((f) => f.visitId === selectedVisit.id);
+                  if (visitFollowups.length === 0) return null;
+
+                  const statusConfig: Record<string, { label: string; icon: any; color: string }> = {
+                    pending: { label: '待处理', icon: AlertCircle, color: 'bg-amber-100 text-amber-700 border-amber-200' },
+                    in_progress: { label: '进行中', icon: Send, color: 'bg-info-100 text-info-700 border-info-200' },
+                    completed: { label: '已完成', icon: CheckCircle, color: 'bg-brand-100 text-brand-700 border-brand-200' },
+                    cancelled: { label: '已取消', icon: XCircle, color: 'bg-gray-100 text-gray-600 border-gray-200' },
+                  };
+
+                  return (
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                        <Send className="w-4 h-4 text-purple-500" />
+                        回访任务
+                        <span className="badge bg-purple-100 text-purple-700">
+                          {visitFollowups.length} 条
+                        </span>
+                      </h3>
+                      <div className="space-y-3">
+                        {visitFollowups.map((f) => {
+                          const doctor = doctors.find((d) => d.id === f.doctorId);
+                          const sc = statusConfig[f.status] || statusConfig.pending;
+                          const ScIcon = sc.icon;
+
+                          return (
+                            <div key={f.id} className="card p-4">
+                              <div className="flex items-start justify-between mb-3">
+                                <div className="flex items-center gap-2">
+                                  <span className="chip bg-purple-100 text-purple-700 text-xs font-medium">
+                                    {f.type}
+                                  </span>
+                                  <span className={cn('badge border flex items-center gap-1 text-xs', sc.color)}>
+                                    <ScIcon className="w-3 h-3" />
+                                    {sc.label}
+                                  </span>
+                                </div>
+                                <div className="text-right">
+                                  <div className="text-sm font-medium text-gray-800">{formatDate(f.scheduledDate)}</div>
+                                  {f.completedDate && (
+                                    <div className="text-xs text-gray-400">完成于 {formatDate(f.completedDate)}</div>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="space-y-2 text-sm">
+                                <div className="flex items-start gap-2">
+                                  <span className="w-14 text-gray-400 shrink-0">医生</span>
+                                  <span className="text-gray-700">{doctor?.avatarEmoji} {doctor?.name || '-'}</span>
+                                </div>
+                                <div className="flex items-start gap-2">
+                                  <span className="w-14 text-gray-400 shrink-0">备注</span>
+                                  <span className="text-gray-700">{f.notes || '-'}</span>
+                                </div>
+                                {f.feedback && (
+                                  <div className="flex items-start gap-2">
+                                    <span className="w-14 text-gray-400 shrink-0">回访反馈</span>
+                                    <span className="text-gray-700">{f.feedback}</span>
+                                  </div>
+                                )}
+                                {f.satisfactionScore && (
+                                  <div className="flex items-center gap-2">
+                                    <span className="w-14 text-gray-400 shrink-0">满意度</span>
+                                    <div className="flex items-center gap-0.5">
+                                      {[1, 2, 3, 4, 5].map((i) => (
+                                        <span key={i} className={cn(
+                                          'text-lg',
+                                          i <= f.satisfactionScore! ? 'text-amber-400' : 'text-gray-200'
+                                        )}>★</span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Cost Summary - Settlement Receipt */}
                 <div>
                   <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
                     <DollarSign className="w-4 h-4 text-green-500" />
-                    费用明细
+                    费用结算单
                   </h3>
-                  <div className="card p-5">
-                    <div className="grid grid-cols-4 gap-4 mb-4">
-                      {(() => {
-                        const cb = selectedVisit.costBreakdown || {
-                          examFee: Math.max(0, selectedVisit.totalCost - getVisitPrescriptions(selectedVisit.id).reduce((s, p) => s + p.unitPrice * p.quantity, 0)),
-                          medicineFee: getVisitPrescriptions(selectedVisit.id).reduce((s, p) => s + p.unitPrice * p.quantity, 0),
-                          treatmentFee: 0,
-                          otherFee: 0,
-                        };
-                        return (
-                          <>
-                            <div className="text-center p-4 bg-gray-50 rounded-xl">
-                              <div className="text-xs text-gray-400 mb-1">检查费</div>
-                              <div className="text-lg font-bold text-gray-700">{formatCurrency(cb.examFee)}</div>
-                            </div>
-                            <div className="text-center p-4 bg-brand-50 rounded-xl">
-                              <div className="text-xs text-brand-400 mb-1">药品费</div>
-                              <div className="text-lg font-bold text-brand-600">{formatCurrency(cb.medicineFee)}</div>
-                            </div>
-                            <div className="text-center p-4 bg-accent-50 rounded-xl">
-                              <div className="text-xs text-accent-400 mb-1">治疗费</div>
-                              <div className="text-lg font-bold text-accent-600">{formatCurrency(cb.treatmentFee)}</div>
-                            </div>
-                            <div className="text-center p-4 bg-info-50 rounded-xl">
-                              <div className="text-xs text-info-400 mb-1">其他</div>
-                              <div className="text-lg font-bold text-info-600">{formatCurrency(cb.otherFee)}</div>
-                            </div>
-                          </>
-                        );
-                      })()}
-                    </div>
-                    <div className="divider" />
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <span className="text-sm text-gray-500">应付金额：</span>
-                        <span className="text-3xl font-bold text-brand-600 ml-2">
-                          {formatCurrency(selectedVisit.totalCost)}
-                        </span>
+                  <div className="card p-5 bg-gradient-to-br from-gray-50/50 to-brand-50/30">
+                    {/* Receipt Header */}
+                    <div className="text-center mb-4 pb-4 border-b-2 border-dashed border-gray-200">
+                      <div className="text-lg font-bold text-gray-800">收费凭证</div>
+                      <div className="text-xs text-gray-400 mt-1">
+                        接诊单号：{selectedVisit.id.toUpperCase()} · {formatDate(selectedVisit.visitDate)}
                       </div>
+                    </div>
+
+                    {/* Cost Items */}
+                    {(() => {
+                      const cb = selectedVisit.costBreakdown || {
+                        examFee: Math.max(0, selectedVisit.totalCost - getVisitPrescriptions(selectedVisit.id).reduce((s, p) => s + p.unitPrice * p.quantity, 0)),
+                        medicineFee: getVisitPrescriptions(selectedVisit.id).reduce((s, p) => s + p.unitPrice * p.quantity, 0),
+                        treatmentFee: 0,
+                        otherFee: 0,
+                      };
+                      const items = [
+                        { name: '检查费', value: cb.examFee, color: 'text-gray-700' },
+                        { name: '治疗费', value: cb.treatmentFee, color: 'text-accent-600' },
+                        { name: '药品费', value: cb.medicineFee, color: 'text-brand-600' },
+                        { name: '其他费用', value: cb.otherFee, color: 'text-info-600' },
+                      ].filter((i) => i.value > 0 || true);
+
+                      return (
+                        <div className="space-y-3 mb-4">
+                          {items.map((item, idx) => (
+                            <div key={idx} className="flex items-center justify-between text-sm">
+                              <div className="flex items-center gap-3">
+                                <span className="w-5 h-5 rounded-full bg-gray-200 flex items-center justify-center text-xs text-gray-500 font-medium">
+                                  {idx + 1}
+                                </span>
+                                <span className="text-gray-600">{item.name}</span>
+                              </div>
+                              <span className={cn('font-semibold', item.color)}>{formatCurrency(item.value)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
+
+                    {/* Divider */}
+                    <div className="border-b-2 border-dashed border-gray-200 mb-4" />
+
+                    {/* Total */}
+                    <div className="flex items-center justify-between mb-4">
+                      <span className="text-sm text-gray-500">应付金额</span>
+                      <span className="text-3xl font-bold text-brand-600">
+                        {formatCurrency(selectedVisit.totalCost)}
+                      </span>
+                    </div>
+
+                    {/* Payment Status & Actions */}
+                    <div className="flex items-center justify-between pt-4 border-t border-gray-200">
                       {(() => {
                         const ps = paymentStatusConfig[selectedVisit.paymentStatus];
                         const Icon = ps.icon;
@@ -1282,6 +1446,62 @@ export default function Visits() {
                           </span>
                         );
                       })()}
+                      <div className="flex items-center gap-2">
+                        {selectedVisit.paymentStatus === 'pending' && (
+                          <button
+                            onClick={() => {
+                              updateVisit(selectedVisit.id, { paymentStatus: 'paid' });
+                              showToast('success', '已标记为已收款');
+                            }}
+                            className="btn-sm btn-primary"
+                          >
+                            <CheckCircle className="w-3.5 h-3.5" />
+                            确认收款
+                          </button>
+                        )}
+                        {selectedVisit.paymentStatus === 'paid' && (
+                          <>
+                            <button
+                              onClick={() => {
+                                updateVisit(selectedVisit.id, { paymentStatus: 'refunded' });
+                                showToast('success', '已标记为已退款');
+                              }}
+                              className="btn-sm btn-secondary"
+                            >
+                              <XCircle className="w-3.5 h-3.5" />
+                              办理退款
+                            </button>
+                            <button
+                              onClick={() => {
+                                updateVisit(selectedVisit.id, {
+                                  totalCost: selectedVisit.totalCost + 50,
+                                  costBreakdown: {
+                                    ...selectedVisit.costBreakdown,
+                                    otherFee: (selectedVisit.costBreakdown?.otherFee || 0) + 50,
+                                  },
+                                });
+                                showToast('success', '已添加补缴费用');
+                              }}
+                              className="btn-sm btn-secondary"
+                            >
+                              <DollarSign className="w-3.5 h-3.5" />
+                              补缴费用
+                            </button>
+                          </>
+                        )}
+                        {selectedVisit.paymentStatus === 'refunded' && (
+                          <button
+                            onClick={() => {
+                              updateVisit(selectedVisit.id, { paymentStatus: 'paid' });
+                              showToast('success', '已撤销退款，恢复为已支付');
+                            }}
+                            className="btn-sm btn-secondary"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                            撤销退款
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
